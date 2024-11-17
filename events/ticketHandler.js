@@ -1,9 +1,18 @@
 const { ticketsCollection } = require('../mongodb');
-const { EmbedBuilder, ButtonBuilder, ButtonStyle, ActionRowBuilder, StringSelectMenuBuilder, PermissionsBitField, ChannelType } = require('discord.js');
+const { 
+    EmbedBuilder, 
+    ButtonBuilder, 
+    ButtonStyle, 
+    ActionRowBuilder, 
+    StringSelectMenuBuilder, 
+    PermissionsBitField, 
+    ChannelType 
+} = require('discord.js');
 const ticketIcons = require('../UI/icons/ticketicons');
 
 let config = {};
 
+// Load configuration from the database
 async function loadConfig() {
     try {
         const tickets = await ticketsCollection.find({}).toArray();
@@ -16,10 +25,11 @@ async function loadConfig() {
             return acc;
         }, {});
     } catch (err) {
-        //console.error('Error loading config from MongoDB:', err);
+        console.error('Error loading config from MongoDB:', err);
     }
 }
 
+// Regularly update configuration
 setInterval(loadConfig, 5000);
 
 module.exports = (client) => {
@@ -30,13 +40,16 @@ module.exports = (client) => {
 
     client.on('interactionCreate', async (interaction) => {
         if (interaction.isStringSelectMenu() && interaction.customId === 'select_ticket_type') {
-            handleSelectMenu(interaction, client);
+            await handleSelectMenu(interaction);
         } else if (interaction.isButton() && interaction.customId.startsWith('close_ticket_')) {
-            handleCloseButton(interaction, client);
+            await handleCloseButton(interaction, client);
+        } else if (interaction.isStringSelectMenu() && interaction.customId.startsWith('rate_ticket_')) {
+            await handleRating(interaction);
         }
     });
 };
 
+// Monitor configuration changes and update ticket channels
 async function monitorConfigChanges(client) {
     let previousConfig = JSON.parse(JSON.stringify(config));
 
@@ -54,17 +67,16 @@ async function monitorConfigChanges(client) {
                     const ticketChannel = guild.channels.cache.get(settings.ticketChannelId);
                     if (!ticketChannel) continue;
 
-          
                     const embed = new EmbedBuilder()
                         .setAuthor({
                             name: "Ticket",
-                            iconURL: ticketIcons.mainIcon,
-                            url: "https://discord.gg/xQF9f9yUEM"
+                            iconURL: ticketIcons.mainIcon
                         })
-                        .setDescription('- Please click below menu to create a new ticket.\n\n' +
-                            '**Ticket Guidelines:**\n' +
-                            '- To apply as grinder click on ⛏️Apply as Grinder.\n' +
-                            '- To apply as PVPER click on ⚔️Apply as PVPER')
+                        .setDescription(
+                            `- Please click below to create a new ticket.\n\n**Ticket Guidelines:**\n` +
+                            `- To apply as grinder, click on ⛏️ Apply as Grinder.\n` +
+                            `- To apply as PVPER, click on ⚔️ Apply as PVPER.`
+                        )
                         .setFooter({ text: 'Made by Brand Mine Gamer', iconURL: ticketIcons.modIcon })
                         .setColor('#00FF00')
                         .setTimestamp();
@@ -91,8 +103,9 @@ async function monitorConfigChanges(client) {
     }, 5000);
 }
 
-async function handleSelectMenu(interaction, client) {
-    await interaction.deferReply({ ephemeral: true }); 
+// Handle ticket type selection
+async function handleSelectMenu(interaction) {
+    await interaction.deferReply({ ephemeral: true });
 
     const { guild, user, values } = interaction;
     if (!guild || !user) return;
@@ -103,8 +116,8 @@ async function handleSelectMenu(interaction, client) {
     const settings = config.tickets[guildId];
     if (!settings) return;
 
-    const ticketExists = await ticketsCollection.findOne({ guildId, userId });
-    if (ticketExists) {
+    const existingTicket = await ticketsCollection.findOne({ guildId, userId });
+    if (existingTicket) {
         return interaction.followUp({ content: 'You already have an open ticket.', ephemeral: true });
     }
 
@@ -112,18 +125,9 @@ async function handleSelectMenu(interaction, client) {
         name: `${user.username}-${ticketType}-ticket`,
         type: ChannelType.GuildText,
         permissionOverwrites: [
-            {
-                id: guild.roles.everyone,
-                deny: [PermissionsBitField.Flags.ViewChannel]
-            },
-            {
-                id: userId,
-                allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages, PermissionsBitField.Flags.ReadMessageHistory]
-            },
-            {
-                id: settings.adminRoleId,
-                allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages, PermissionsBitField.Flags.ReadMessageHistory]
-            }
+            { id: guild.roles.everyone, deny: [PermissionsBitField.Flags.ViewChannel] },
+            { id: userId, allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages] },
+            { id: settings.adminRoleId, allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages] }
         ]
     });
 
@@ -131,12 +135,12 @@ async function handleSelectMenu(interaction, client) {
     await ticketsCollection.insertOne({ id: ticketId, channelId: ticketChannel.id, guildId, userId, type: ticketType });
 
     const ticketEmbed = new EmbedBuilder()
-        .setAuthor({
-            name: "Support Ticket",
-            iconURL: ticketIcons.modIcon,
-            url: "https://discord.gg/xQF9f9yUEM"
-        })
-        .setDescription(`Hello ${user}, welcome to our support!\n- Please provide a detailed description of your issue\n- Our support team will assist you as soon as possible.\n- Feel free to open another ticket if this was closed.`)
+        .setAuthor({ name: "Support Ticket", iconURL: ticketIcons.modIcon })
+        .setDescription(
+            `Hello ${user}, welcome to support!\n` +
+            `- Please provide a detailed description of your issue.\n` +
+            `- Our team will assist you shortly.`
+        )
         .setFooter({ text: 'Your satisfaction is our priority', iconURL: ticketIcons.heartIcon })
         .setColor('#00FF00')
         .setTimestamp();
@@ -149,63 +153,30 @@ async function handleSelectMenu(interaction, client) {
     const actionRow = new ActionRowBuilder().addComponents(closeButton);
 
     await ticketChannel.send({ content: `${user}`, embeds: [ticketEmbed], components: [actionRow] });
-
-    const embed = new EmbedBuilder()
-        .setColor(0x0099ff)
-        .setAuthor({ 
-            name: "Ticket Created!", 
-            iconURL: ticketIcons.correctIcon,
-            url: "https://discord.gg/xQF9f9yUEM"
-        })
-        .setDescription(`- Your ${ticketType} ticket has been created.`)
-        .addFields(
-            { name: 'Ticket Channel', value: `${ticketChannel.url}` },
-            { name: 'Instructions', value: 'Please describe your issue in detail.' }
-        )
-        .setTimestamp()
-        .setFooter({ text: 'Thank you for reaching out!', iconURL: ticketIcons.modIcon });
-
-    await user.send({ content: `Your ${ticketType} ticket has been created`, embeds: [embed] });
-
     interaction.followUp({ content: 'Ticket created!', ephemeral: true });
 }
 
+// Handle ticket closure
 async function handleCloseButton(interaction, client) {
     await interaction.deferReply({ ephemeral: true });
 
     const ticketId = interaction.customId.replace('close_ticket_', '');
-    const { guild, user } = interaction;
-    if (!guild || !user) return;
-
     const ticket = await ticketsCollection.findOne({ id: ticketId });
-    if (!ticket) {
-        return interaction.followUp({ content: 'Ticket not found. Please report to staff!', ephemeral: true });
-    }
+    if (!ticket) return interaction.followUp({ content: 'Ticket not found.', ephemeral: true });
 
-    const ticketChannel = guild.channels.cache.get(ticket.channelId);
-    if (ticketChannel) {
-        setTimeout(async () => {
-            await ticketChannel.delete().catch(console.error);
-        }, 5000);
-    }
+    const ticketChannel = interaction.guild.channels.cache.get(ticket.channelId);
+    if (ticketChannel) await ticketChannel.delete().catch(console.error);
 
     await ticketsCollection.deleteOne({ id: ticketId });
 
     const ticketUser = await client.users.fetch(ticket.userId);
     if (ticketUser) {
-        // Embed for the ticket closure notification
         const embed = new EmbedBuilder()
             .setColor(0x0099ff)
-            .setAuthor({
-                name: "Ticket Closed!",
-                iconURL: ticketIcons.correctIcon,
-                url: "https://discord.gg/xQF9f9yUEM"
-            })
-            .setDescription("- Your ticket has been closed. Thank you for reaching out to us!")
-            .setTimestamp()
-            .setFooter({ text: "Thank you for your feedback!", iconURL: ticketIcons.modIcon });
+            .setAuthor({ name: "Ticket Closed!", iconURL: ticketIcons.correctIcon })
+            .setDescription("- Your ticket has been closed. Thank you!")
+            .setFooter({ text: 'Thank you for your feedback!', iconURL: ticketIcons.modIcon });
 
-        // Rating system dropdown menu
         const ratingMenu = new StringSelectMenuBuilder()
             .setCustomId(`rate_ticket_${ticketId}`)
             .setPlaceholder('Rate your experience')
@@ -219,9 +190,8 @@ async function handleCloseButton(interaction, client) {
 
         const actionRow = new ActionRowBuilder().addComponents(ratingMenu);
 
-        // Send the rating request to the user
         await ticketUser.send({
-            content: "We would love to hear your feedback! Please rate your experience below:",
+            content: "Please rate your experience:",
             embeds: [embed],
             components: [actionRow]
         });
@@ -230,33 +200,26 @@ async function handleCloseButton(interaction, client) {
     interaction.followUp({ content: 'Ticket closed and user notified.', ephemeral: true });
 }
 
-// Rating system interaction handler
-client.on('interactionCreate', async (interaction) => {
-    if (interaction.isStringSelectMenu() && interaction.customId.startsWith('rate_ticket_')) {
-        const rating = interaction.values[0];
-        const ticketId = interaction.customId.replace('rate_ticket_', '');
+// Handle ticket rating
+async function handleRating(interaction) {
+    const rating = interaction.values[0];
+    const ticketId = interaction.customId.replace('rate_ticket_', '');
 
-        // Log or store the rating in the database
-        await ticketsCollection.updateOne(
-            { id: ticketId },
-            { $set: { rating: parseInt(rating, 10) } }
-        );
+    await ticketsCollection.updateOne({ id: ticketId }, { $set: { rating: parseInt(rating, 10) } });
 
-        await interaction.reply({
-            content: `Thank you for your feedback! You rated us ${rating} ⭐.`,
-            ephemeral: true
-        });
+    await interaction.reply({
+        content: `Thank you for your feedback! You rated us ${rating} ⭐.`,
+        ephemeral: true
+    });
 
-        // Optionally: notify admins or log ratings in a specific channel
-        const logChannel = interaction.guild.channels.cache.find(ch => ch.name === "ratings-log");
-        if (logChannel) {
-            const logEmbed = new EmbedBuilder()
-                .setColor(0x00ff00)
-                .setTitle("New Ticket Rating")
-                .setDescription(`User **${interaction.user.tag}** rated ticket \`${ticketId}\`: **${rating} ⭐**`)
-                .setTimestamp();
+    const logChannel = interaction.guild.channels.cache.find(ch => ch.name === "ratings-log");
+    if (logChannel) {
+        const logEmbed = new EmbedBuilder()
+            .setColor(0x00ff00)
+            .setTitle("New Ticket Rating")
+            .setDescription(`User **${interaction.user.tag}** rated ticket \`${ticketId}\`: **${rating} ⭐**`)
+            .setTimestamp();
 
-            await logChannel.send({ embeds: [logEmbed] });
-        }
+        await logChannel.send({ embeds: [logEmbed] });
     }
-});
+                    }
