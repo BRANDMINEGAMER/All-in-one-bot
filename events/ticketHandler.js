@@ -193,19 +193,70 @@ async function handleCloseButton(interaction, client) {
 
     const ticketUser = await client.users.fetch(ticket.userId);
     if (ticketUser) {
+        // Embed for the ticket closure notification
         const embed = new EmbedBuilder()
             .setColor(0x0099ff)
-            .setAuthor({ 
-                name: "Ticket closed!", 
-                iconURL: ticketIcons.correctrIcon,
+            .setAuthor({
+                name: "Ticket Closed!",
+                iconURL: ticketIcons.correctIcon,
                 url: "https://discord.gg/xQF9f9yUEM"
             })
-            .setDescription(`- Your ticket has been closed.`)
+            .setDescription("- Your ticket has been closed. Thank you for reaching out to us!")
             .setTimestamp()
-            .setFooter({ text: 'Thank you for reaching out!', iconURL: ticketIcons.modIcon });
+            .setFooter({ text: "Thank you for your feedback!", iconURL: ticketIcons.modIcon });
 
-        await ticketUser.send({ content: `Your ticket has been closed.`, embeds: [embed] });
+        // Rating system dropdown menu
+        const ratingMenu = new StringSelectMenuBuilder()
+            .setCustomId(`rate_ticket_${ticketId}`)
+            .setPlaceholder('Rate your experience')
+            .addOptions([
+                { label: '⭐ Very Bad', value: '1' },
+                { label: '⭐⭐ Bad', value: '2' },
+                { label: '⭐⭐⭐ Average', value: '3' },
+                { label: '⭐⭐⭐⭐ Good', value: '4' },
+                { label: '⭐⭐⭐⭐⭐ Excellent', value: '5' }
+            ]);
+
+        const actionRow = new ActionRowBuilder().addComponents(ratingMenu);
+
+        // Send the rating request to the user
+        await ticketUser.send({
+            content: "We would love to hear your feedback! Please rate your experience below:",
+            embeds: [embed],
+            components: [actionRow]
+        });
     }
 
     interaction.followUp({ content: 'Ticket closed and user notified.', ephemeral: true });
 }
+
+// Rating system interaction handler
+client.on('interactionCreate', async (interaction) => {
+    if (interaction.isStringSelectMenu() && interaction.customId.startsWith('rate_ticket_')) {
+        const rating = interaction.values[0];
+        const ticketId = interaction.customId.replace('rate_ticket_', '');
+
+        // Log or store the rating in the database
+        await ticketsCollection.updateOne(
+            { id: ticketId },
+            { $set: { rating: parseInt(rating, 10) } }
+        );
+
+        await interaction.reply({
+            content: `Thank you for your feedback! You rated us ${rating} ⭐.`,
+            ephemeral: true
+        });
+
+        // Optionally: notify admins or log ratings in a specific channel
+        const logChannel = interaction.guild.channels.cache.find(ch => ch.name === "ratings-log");
+        if (logChannel) {
+            const logEmbed = new EmbedBuilder()
+                .setColor(0x00ff00)
+                .setTitle("New Ticket Rating")
+                .setDescription(`User **${interaction.user.tag}** rated ticket \`${ticketId}\`: **${rating} ⭐**`)
+                .setTimestamp();
+
+            await logChannel.send({ embeds: [logEmbed] });
+        }
+    }
+});
