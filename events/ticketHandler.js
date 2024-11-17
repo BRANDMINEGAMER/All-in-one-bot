@@ -57,15 +57,15 @@ async function monitorConfigChanges(client) {
           
                     const embed = new EmbedBuilder()
                         .setAuthor({
-                            name: "Welcome to Ticket Support",
+                            name: "Ticket",
                             iconURL: ticketIcons.mainIcon,
                             url: "https://discord.gg/xQF9f9yUEM"
                         })
                         .setDescription('- Please click below menu to create a new ticket.\n\n' +
                             '**Ticket Guidelines:**\n' +
-                            '- Empty tickets are not permitted.\n' +
-                            '- Please be patient while waiting for a response from our support team.')
-                        .setFooter({ text: 'We are here to Help!', iconURL: ticketIcons.modIcon })
+                            '- To apply as grinder click on ⛏️Apply as Grinder.\n' +
+                            '- To apply as PVPER click on ⚔️Apply as PVPER')
+                        .setFooter({ text: 'Made by Brand Mine Gamer', iconURL: ticketIcons.modIcon })
                         .setColor('#00FF00')
                         .setTimestamp();
 
