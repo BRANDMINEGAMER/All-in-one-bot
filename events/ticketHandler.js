@@ -29,26 +29,6 @@ async function loadConfig() {
     }
 }
 
-// Regularly update configuration
-setInterval(loadConfig, 5000);
-
-module.exports = (client) => {
-    client.on('ready', async () => {
-        await loadConfig();
-        monitorConfigChanges(client);
-    });
-
-    client.on('interactionCreate', async (interaction) => {
-        if (interaction.isStringSelectMenu() && interaction.customId === 'select_ticket_type') {
-            await handleSelectMenu(interaction);
-        } else if (interaction.isButton() && interaction.customId.startsWith('close_ticket_')) {
-            await handleCloseButton(interaction, client);
-        } else if (interaction.isStringSelectMenu() && interaction.customId.startsWith('rate_ticket_')) {
-            await handleRating(interaction);
-        }
-    });
-};
-
 // Monitor configuration changes and update ticket channels
 async function monitorConfigChanges(client) {
     let previousConfig = JSON.parse(JSON.stringify(config));
@@ -68,10 +48,7 @@ async function monitorConfigChanges(client) {
                     if (!ticketChannel) continue;
 
                     const embed = new EmbedBuilder()
-                        .setAuthor({
-                            name: "Ticket",
-                            iconURL: ticketIcons.mainIcon
-                        })
+                        .setAuthor({ name: "Ticket", iconURL: ticketIcons.mainIcon })
                         .setDescription(
                             `- Please click below to create a new ticket.\n\n**Ticket Guidelines:**\n` +
                             `- To apply as grinder, click on ⛏️ Apply as Grinder.\n` +
@@ -91,10 +68,7 @@ async function monitorConfigChanges(client) {
 
                     const row = new ActionRowBuilder().addComponents(menu);
 
-                    await ticketChannel.send({
-                        embeds: [embed],
-                        components: [row]
-                    });
+                    await ticketChannel.send({ embeds: [embed], components: [row] });
 
                     previousConfig = JSON.parse(JSON.stringify(config));
                 }
@@ -222,4 +196,22 @@ async function handleRating(interaction) {
 
         await logChannel.send({ embeds: [logEmbed] });
     }
-                    }
+}
+
+// Initialize and set up event listeners
+module.exports = (client) => {
+    client.on('ready', async () => {
+        await loadConfig();
+        monitorConfigChanges(client);
+    });
+
+    client.on('interactionCreate', async (interaction) => {
+        if (interaction.isStringSelectMenu() && interaction.customId === 'select_ticket_type') {
+            await handleSelectMenu(interaction);
+        } else if (interaction.isButton() && interaction.customId.startsWith('close_ticket_')) {
+            await handleCloseButton(interaction, client);
+        } else if (interaction.isStringSelectMenu() && interaction.customId.startsWith('rate_ticket_')) {
+            await handleRating(interaction);
+        }
+    });
+};
