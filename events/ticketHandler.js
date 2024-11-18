@@ -1,3 +1,4 @@
+const { ticketsCollection } = require('../mongodb');
 const { 
     EmbedBuilder, 
     ButtonBuilder, 
@@ -7,12 +8,11 @@ const {
     PermissionsBitField, 
     ChannelType 
 } = require('discord.js');
-const { ticketsCollection } = require('../mongodb'); // Ensure this file exists and is properly set up
-const ticketIcons = require('../UI/icons/ticketicons'); // Ensure icons exist or modify paths
+const ticketIcons = require('../UI/icons/ticketicons');
 
 let config = {};
 
-// **Load configuration from the database**
+// Load configuration from the database
 async function loadConfig() {
     try {
         const tickets = await ticketsCollection.find({}).toArray();
@@ -20,17 +20,16 @@ async function loadConfig() {
             acc[ticket.serverId] = {
                 ticketChannelId: ticket.ticketChannelId,
                 adminRoleId: ticket.adminRoleId,
-                status: ticket.status,
+                status: ticket.status
             };
             return acc;
         }, {});
-        console.log('Configuration loaded:', config);
     } catch (err) {
         console.error('Error loading config from MongoDB:', err);
     }
 }
 
-// **Monitor changes in the configuration and update ticket channels**
+// Monitor configuration changes and update ticket channels
 async function monitorConfigChanges(client) {
     let previousConfig = JSON.parse(JSON.stringify(config));
 
@@ -41,12 +40,7 @@ async function monitorConfigChanges(client) {
                 const settings = config.tickets[guildId];
                 const previousSettings = previousConfig.tickets[guildId];
 
-                if (
-                    settings && 
-                    settings.status && 
-                    settings.ticketChannelId && 
-                    (!previousSettings || settings.ticketChannelId !== previousSettings.ticketChannelId)
-                ) {
+                if (settings && settings.status && settings.ticketChannelId && (!previousSettings || settings.ticketChannelId !== previousSettings.ticketChannelId)) {
                     const guild = client.guilds.cache.get(guildId);
                     if (!guild) continue;
 
@@ -56,8 +50,9 @@ async function monitorConfigChanges(client) {
                     const embed = new EmbedBuilder()
                         .setAuthor({ name: "Ticket", iconURL: ticketIcons.mainIcon })
                         .setDescription(
-                            `- Click below to create a new ticket.\n\n**Ticket Guidelines:**\n` +
-                            `- Apply as Grinder: ⛏️\n- Apply as PVPER: ⚔️`
+                            `- Please click below to create a new ticket.\n\n**Ticket Guidelines:**\n` +
+                            `- To apply as grinder, click on ⛏️ Apply as Grinder.\n` +
+                            `- To apply as PVPER, click on ⚔️ Apply as PVPER.`
                         )
                         .setFooter({ text: 'Made by Brand Mine Gamer', iconURL: ticketIcons.modIcon })
                         .setColor('#00FF00')
@@ -68,20 +63,21 @@ async function monitorConfigChanges(client) {
                         .setPlaceholder('Choose ticket type')
                         .addOptions([
                             { label: '⚔️ Apply as PVPER', value: 'apply_as_pvper' },
-                            { label: '⛏️ Apply as Grinder', value: 'apply_grinder' },
+                            { label: '⛏️ Apply as Grinder', value: 'apply_grinder' }
                         ]);
 
                     const row = new ActionRowBuilder().addComponents(menu);
 
                     await ticketChannel.send({ embeds: [embed], components: [row] });
+
+                    previousConfig = JSON.parse(JSON.stringify(config));
                 }
             }
-            previousConfig = JSON.parse(JSON.stringify(config));
         }
     }, 5000);
 }
 
-// **Handle ticket type selection**
+// Handle ticket type selection
 async function handleSelectMenu(interaction) {
     await interaction.deferReply({ ephemeral: true });
 
@@ -105,8 +101,8 @@ async function handleSelectMenu(interaction) {
         permissionOverwrites: [
             { id: guild.roles.everyone, deny: [PermissionsBitField.Flags.ViewChannel] },
             { id: userId, allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages] },
-            { id: settings.adminRoleId, allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages] },
-        ],
+            { id: settings.adminRoleId, allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages] }
+        ]
     });
 
     const ticketId = `${guildId}-${ticketChannel.id}`;
@@ -116,7 +112,7 @@ async function handleSelectMenu(interaction) {
         .setAuthor({ name: "Support Ticket", iconURL: ticketIcons.modIcon })
         .setDescription(
             `Hello ${user}, welcome to support!\n` +
-            `- Provide a detailed description of your issue.\n` +
+            `- Please provide a detailed description of your issue.\n` +
             `- Our team will assist you shortly.`
         )
         .setFooter({ text: 'Your satisfaction is our priority', iconURL: ticketIcons.heartIcon })
@@ -134,7 +130,7 @@ async function handleSelectMenu(interaction) {
     interaction.followUp({ content: 'Ticket created!', ephemeral: true });
 }
 
-// **Handle ticket closure**
+// Handle ticket closure
 async function handleCloseButton(interaction, client) {
     await interaction.deferReply({ ephemeral: true });
 
@@ -163,7 +159,7 @@ async function handleCloseButton(interaction, client) {
                 { label: '⭐⭐ Bad', value: '2' },
                 { label: '⭐⭐⭐ Average', value: '3' },
                 { label: '⭐⭐⭐⭐ Good', value: '4' },
-                { label: '⭐⭐⭐⭐⭐ Excellent', value: '5' },
+                { label: '⭐⭐⭐⭐⭐ Excellent', value: '5' }
             ]);
 
         const actionRow = new ActionRowBuilder().addComponents(ratingMenu);
@@ -171,17 +167,51 @@ async function handleCloseButton(interaction, client) {
         await ticketUser.send({
             content: "Please rate your experience:",
             embeds: [embed],
-            components: [actionRow],
+            components: [actionRow]
         });
     }
 
     interaction.followUp({ content: 'Ticket closed and user notified.', ephemeral: true });
 }
 
-// **Export handlers**
-module.exports = {
-    loadConfig,
-    monitorConfigChanges,
-    handleSelectMenu,
-    handleCloseButton,
+// Handle ticket rating
+async function handleRating(interaction) {
+    const rating = interaction.values[0];
+    const ticketId = interaction.customId.replace('rate_ticket_', '');
+
+    await ticketsCollection.updateOne({ id: ticketId }, { $set: { rating: parseInt(rating, 10) } });
+
+    await interaction.reply({
+        content: `Thank you for your feedback! You rated us ${rating} ⭐.`,
+        ephemeral: true
+    });
+
+    const logChannel = interaction.guild.channels.cache.find(ch => ch.name === "ratings-log");
+    if (logChannel) {
+        const logEmbed = new EmbedBuilder()
+            .setColor(0x00ff00)
+            .setTitle("New Ticket Rating")
+            .setDescription(`User **${interaction.user.tag}** rated ticket \`${ticketId}\`: **${rating} ⭐**`)
+            .setTimestamp();
+
+        await logChannel.send({ embeds: [logEmbed] });
+    }
+}
+
+// Initialize and set up event listeners
+module.exports = (client) => {
+    client.on('ready', async () => {
+        await loadConfig();
+        monitorConfigChanges(client);
+    });
+
+    client.on('interactionCreate', async (interaction) => {
+        if (interaction.isStringSelectMenu() && interaction.customId === 'select_ticket_type') {
+            await handleSelectMenu(interaction);
+        } else if (interaction.isButton() && interaction.customId.startsWith('close_ticket_')) {
+            await handleCloseButton(interaction, client);
+        } else if (interaction.isStringSelectMenu() && interaction.customId.startsWith('rate_ticket_')) {
+            await handleRating(interaction);
+        }
+    });
 };
