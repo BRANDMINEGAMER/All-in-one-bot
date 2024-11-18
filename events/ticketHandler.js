@@ -179,14 +179,17 @@ async function handleRating(interaction) {
     const rating = interaction.values[0];
     const ticketId = interaction.customId.replace('rate_ticket_', '');
 
+    // Update ticket rating in the database
     await ticketsCollection.updateOne({ id: ticketId }, { $set: { rating: parseInt(rating, 10) } });
 
+    // Acknowledge the user
     await interaction.reply({
         content: `Thank you for your feedback! You rated us ${rating} ⭐.`,
         ephemeral: true
     });
 
-    const logChannelId = "1303231539773181966"; // Replace with your log channel ID
+    // Fetch the log channel directly by ID (since interaction.guild is not available in DMs)
+    const logChannelId = "1303231539773181966"; // Replace with your actual log channel ID
     try {
         const logChannel = await interaction.client.channels.fetch(logChannelId);
         if (logChannel?.isTextBased()) {
@@ -202,21 +205,3 @@ async function handleRating(interaction) {
         console.error("Error logging the ticket rating:", err);
     }
 }
-
-// Initialize and set up event listeners
-module.exports = (client) => {
-    client.on('ready', async () => {
-        await loadConfig();
-        monitorConfigChanges(client);
-    });
-
-    client.on('interactionCreate', async (interaction) => {
-        if (interaction.isStringSelectMenu() && interaction.customId === 'select_ticket_type') {
-            await handleSelectMenu(interaction);
-        } else if (interaction.isButton() && interaction.customId.startsWith('close_ticket_')) {
-            await handleCloseButton(interaction, client);
-        } else if (interaction.isStringSelectMenu() && interaction.customId.startsWith('rate_ticket_')) {
-            await handleRating(interaction);
-        }
-    });
-};
