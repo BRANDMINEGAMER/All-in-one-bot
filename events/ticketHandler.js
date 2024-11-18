@@ -186,15 +186,20 @@ async function handleRating(interaction) {
         ephemeral: true
     });
 
-    const logChannel = interaction.guild.channels.cache.find(ch => ch.name === "ratings-log");
-    if (logChannel) {
-        const logEmbed = new EmbedBuilder()
-            .setColor(0x00ff00)
-            .setTitle("New Ticket Rating")
-            .setDescription(`User **${interaction.user.tag}** rated ticket \`${ticketId}\`: **${rating} ⭐**`)
-            .setTimestamp();
+    const logChannelId = "1303231539773181966"; // Replace with your log channel ID
+    try {
+        const logChannel = await interaction.client.channels.fetch(logChannelId);
+        if (logChannel?.isTextBased()) {
+            const logEmbed = new EmbedBuilder()
+                .setColor(0x00ff00)
+                .setTitle("New Ticket Rating")
+                .setDescription(`User **${interaction.user.tag}** rated ticket \`${ticketId}\`: **${rating} ⭐**`)
+                .setTimestamp();
 
-        await logChannel.send({ embeds: [logEmbed] });
+            await logChannel.send({ embeds: [logEmbed] });
+        }
+    } catch (err) {
+        console.error("Error logging the ticket rating:", err);
     }
 }
 
