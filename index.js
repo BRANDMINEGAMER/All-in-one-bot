@@ -1,4 +1,5 @@
 const client = require('./main');
+const keep_alive = require('./keep_alive.js')
 require('./bot');
 require('./shiva');
 
