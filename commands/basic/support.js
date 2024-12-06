@@ -8,7 +8,6 @@ module.exports = {
     async execute(interaction) {
         const supportServerLink = lang.supportServerLink;
         const githubLink = lang.githubLink;
-        const replitLink = lang.replitLink;
         const youtubeLink = lang.youtubeLink;
 
         const embed = new EmbedBuilder()
