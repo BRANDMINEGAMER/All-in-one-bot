@@ -97,7 +97,7 @@ module.exports = {
                     color: "#3498db",
                     thumbnail: "https://cdn.discordapp.com/avatars/1052983625425100812/c92821f5755e741b4e0c993eebcfbcbf.webp?size=1024",
                     author: {
-                        name: 'TEAM SOUL STEALERS●CORE',
+                        name: 'All in One Bot',
                         iconURL: "https://cdn.discordapp.com/avatars/1052983625425100812/c92821f5755e741b4e0c993eebcfbcbf.webp?size=1024",
                         url: "https://discord.gg/Xhg9W5nFaj"
                     }
